@@ -28,11 +28,19 @@ jobs:
         run: |
           tar -czvf merged_texts.dict.tar.gz merged_texts.dict merged_texts.txt merged_texts_only.txt
           zip -9 merged_texts.dict.zip merged_texts.dict merged_texts.txt merged_texts_only.txt
-      - name: Upload binaries to release
+      - name: Upload tar.gz to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: merged_texts.dict.*
-          asset_name: merged_texts.dict.*
+          file: merged_texts.dict.tar.gz
+          asset_name: merged_texts.dict.tar.gz
+          tag: ${{ github.ref }}
+          overwrite: true
+      - name: Upload zip to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: merged_texts.dict.zip
+          asset_name: merged_texts.dict.zip
           tag: ${{ github.ref }}
           overwrite: true
