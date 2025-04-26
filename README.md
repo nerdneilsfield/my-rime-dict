@@ -32,3 +32,12 @@ patch:
     enable_sentence: true
     initial_quality: 1 # 可根据需要调整权重
 ```
+
+## 手心输入法
+
+1. 打开设置切换到词库
+2. 导入用户本地词库，选择 `output/merged_texts_shouxing.txt` 导入即可
+
+## 其它输入法
+
+请下载 [深蓝词库转换](https://github.com/studyzy/imewlconverter)。输入格式选择无拼音纯汉字，选择文件 `output/merged_texts_only.txt` 即可，然后选择目标格式。

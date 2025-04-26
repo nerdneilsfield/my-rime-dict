@@ -362,6 +362,15 @@ def merge_texts(input_dir, output_file_prefix, enable_rime, enable_rime_flypy, e
         for line in ime_lines:
             f.write(line + "\n")
     print(f"生成 ime 词库文件 {output_ime_path} 成功")
+    
+    # 纯汉字
+    output_only_text_path = f"{output_file_prefix}_only.txt"
+    only_text_lines = generate_only_text_lines(lines_with_pinyin)
+    with open(output_only_text_path, 'w', encoding='utf-8') as f:
+        for line in only_text_lines:
+            if is_chinese_only(line):
+                f.write(line + "\n")
+    print(f"生成 纯汉字 词库文件 {output_only_text_path} 成功")
         
     if enable_rime:
         output_rime_path = f"{output_file_prefix}_rime.txt"
