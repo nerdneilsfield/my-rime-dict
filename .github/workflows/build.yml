@@ -12,14 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     container: archlinux:latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Install dependencies
+      - name: Install git
         run: |
-          pacman -S --noconfirm python python-pip libime \
-          pip install -r requirements.txt
+          pacman -Syu --noconfirm git python python-pip libime wget curl \
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Merge texts
         run: |
+          python -m pip install -r requirements.txt \
           python scripts/merge_texts.py text merged_texts.txt merged_texts_only.txt
       - name: build dictionary
         run: |
