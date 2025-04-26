@@ -14,8 +14,7 @@ jobs:
     steps:
       - name: Install git
         run: |
-          pacman -Syu --noconfirm git python python-pip libime wget curl \
-          git config --global --add safe.directory $GITHUB_WORKSPACE
+          pacman -Syu --noconfirm git python python-pip libime wget curl
       - name: Checkout
         uses: actions/checkout@v4
       - name: Merge texts
