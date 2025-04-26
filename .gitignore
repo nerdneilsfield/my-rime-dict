@@ -12,3 +12,8 @@ __pycache__
 merged_text.txt
 merged_text_only.txt
 merged_only_text.txt
+output_rime_text.txt
+
+output/*
+merged_rime.txt
+merged_rime_flypy.txt
