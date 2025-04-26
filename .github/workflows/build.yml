@@ -1,0 +1,45 @@
+name: Build
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo pacman -S --noconfirm python python-pip libime \
+          pip install -r requirements.txt
+      - name: Merge texts
+        run: |
+          python scripts/merge_texts.py text merged_texts.txt merged_texts_only.txt
+      - name: build dictionary
+        run: |
+          libime_pinyindict merged_texts.txt merged_texts.dict -v
+      - name: Compress dictionary
+        run: |
+          tar -czvf merged_texts.dict.tar.gz merged_texts.dict merged_texts.txt merged_texts_only.txt
+          zip -9 merged_texts.dict.zip merged_texts.dict merged_texts.txt merged_texts_only.txt
+      - name: Upload to nightly
+        uses: actions/upload-artifact@v3
+        with:
+          name: merged_texts.dict.tar.gz
+          path: merged_texts.dict.tar.gz
+          retention-days: 240
+      - name: Upload to nightly
+        uses: actions/upload-artifact@v3
+        with:
+          name: merged_texts.dict.zip
+          path: merged_texts.dict.zip
+          retention-days: 240
