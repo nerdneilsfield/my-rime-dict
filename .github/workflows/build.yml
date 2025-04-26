@@ -2,10 +2,7 @@ name: Build
 on:
   push:
     branches:
-      - master
-  pull_request:
-    branches:
-      - master
+      - v*
 permissions:
   contents: write
   pull-requests: write
@@ -37,9 +34,11 @@ jobs:
           name: merged_texts.dict.tar.gz
           path: merged_texts.dict.tar.gz
           retention-days: 240
-      - name: Upload to nightly
-        uses: actions/upload-artifact@v3
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
         with:
-          name: merged_texts.dict.zip
-          path: merged_texts.dict.zip
-          retention-days: 240
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: merged_texts.dict.*
+          asset_name: merged_texts.dict.*
+          tag: ${{ github.ref }}
+          overwrite: true
