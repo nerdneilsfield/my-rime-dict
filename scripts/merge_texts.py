@@ -398,9 +398,12 @@ if __name__ == "__main__":
     parser.add_argument('--enable_shouxing', action='store_true', help='是否只生成适用于手心的 txt 文件')
 
     args = parser.parse_args()
+    
+    dir_name = os.path.dirname(args.output_file_prefix)
+    print(f"输出文件夹: {dir_name}")
 
-    if os.path.exists(os.path.dirname(args.output_file_prefix)):
-        print(f"Warning：输出路径 '{args.output_file_prefix}' 不是一个有效的目录。")
-        os.makedirs(os.path.dirname(args.output_file_prefix), exist_ok=True)
+    if not os.path.exists(dir_name):
+        print(f"Warning：输出路径 '{dir_name}' 不是一个有效的目录。")
+        os.makedirs(dir_name, exist_ok=True)
 
     merge_texts(args.input_dir, args.output_file_prefix, args.enable_rime, args.enable_rime_flypy, args.enable_rime_py, args.enable_shouxing)
