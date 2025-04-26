@@ -15,11 +15,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          apt-get update
-          apt-get install -y python3 python3-pip libime-bin
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip libime-bin
       - name: Merge texts
         run: |
-          python -m pip install -r requirements.txt \
+          python -m pip install --use-pep517 --users -r requirements.txt \
           python scripts/merge_texts.py text merged_texts.txt merged_texts_only.txt
       - name: build dictionary
         run: |
