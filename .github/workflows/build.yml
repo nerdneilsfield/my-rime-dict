@@ -28,12 +28,6 @@ jobs:
         run: |
           tar -czvf merged_texts.dict.tar.gz merged_texts.dict merged_texts.txt merged_texts_only.txt
           zip -9 merged_texts.dict.zip merged_texts.dict merged_texts.txt merged_texts_only.txt
-      - name: Upload to nightly
-        uses: actions/upload-artifact@v3
-        with:
-          name: merged_texts.dict.tar.gz
-          path: merged_texts.dict.tar.gz
-          retention-days: 240
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
