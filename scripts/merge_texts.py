@@ -7,10 +7,10 @@ import pypinyin
 import itertools
 
 # 定义中英文标点符号的正则表达式
-# 中文标点：，。？！；：‘’"“（）【】《》、
+# 中文标点：，。？！；：""（）【】《》、
 # 英文标点：,.?!;:'"()[]<>
-# PUNCTUATION_RE = re.compile(r'[\s,，.。？！；：‘’"“（）【】《》、,.?!;:\'"()\[\]<>]+')
-PUNCTUATION_RE = re.compile(r'[\s,.。？！；：‘’"“（）【】、,.?!;:\'"()\[\]<>]+')
+# PUNCTUATION_RE = re.compile(r'[\s,，.。？！；：""（）【】《》、,.?!;:\'"()\[\]<>]+')
+PUNCTUATION_RE = re.compile(r'[\s,.。？！；：""（）【】、,.?!;:\'"()\[\]<>]+')
 
 ONLY_ENGLISH_ALPHABET_RE = re.compile(r'^[a-zA-Z]+$')
     # 定义只匹配中文字符的正则表达式
@@ -28,9 +28,10 @@ def check_valid_line(line):
     return True
 
 def only_keep_chinese_chars(line):
-    """只保留中文字符"""
-    chinese_chars = CHINESE_CHAR_RE.findall(line)
-    return ''.join(chinese_chars)
+#     """只保留中文字符"""
+#     chinese_chars = CHINESE_CHAR_RE.findall(line)
+#     return ''.join(chinese_chars)
+        return line
 
 def find_txt_files(input_dir):
     """递归查找指定目录下的所有 .txt 文件"""
@@ -83,7 +84,7 @@ def merge_texts(input_dir, output_file, output_only_file):
             with open(file_path, 'r', encoding='utf-8') as infile:
                 for line in infile:
                     line_strip = line.strip()
-                    if line_strip.startswith("#"):
+                    if line_strip.startswith("#") or line_strip.startswith("&") or line_strip.startswith("*") or line_strip.startswith("-") or line_strip.startswith("="):
                         comment_lines_num += 1
                         continue
                     if line_strip == "":
@@ -139,13 +140,36 @@ def merge_texts(input_dir, output_file, output_only_file):
             for formatted_line in sorted_lines:
                 outfile.write(formatted_line + '\n')
         print(f"成功将结果写入: {output_path}")
-        sorted_lines_only = sorted(list(unique_lines))
+
+        # --- 修改开始: 为 output_only_file 添加拼音 ---
+        output_lines_only = []
+        for line in unique_lines:
+            if line.startswith("&") or line.startswith("*") or line.startswith("-") or line.startswith("="):
+                continue
+            try:
+                # 生成拼音，不包含声调，非多音字模式
+                pinyin_list = pypinyin.pinyin(line, style=pypinyin.Style.NORMAL, heteronym=False)
+                # 过滤掉非汉字字符导致的空列表，并将拼音连接起来
+                pinyin_str = "".join(item[0] for item in pinyin_list if item and item[0])
+
+                if pinyin_str: # 确保生成了拼音
+                    formatted_line = f"{line}\t{pinyin_str}"
+                    output_lines_only.append(formatted_line)
+            except Exception as pinyin_error:
+                print(f"处理行 '{line}' 的拼音时出错 (output_only): {pinyin_error}")
+                continue # 跳过出错的行
+
+        # 对最终格式化的行进行排序
+        sorted_lines_only = sorted(output_lines_only)
+        # --- 修改结束 ---
+
         with open(output_only_path, 'w', encoding='utf-8') as outfile:
+            # 写入排序后的带拼音的行
             for formatted_line in sorted_lines_only:
                 outfile.write(formatted_line + '\n')
         print(f"成功将结果写入: {output_only_path}")
     except Exception as e:
-        print(f"写入输出文件 {output_file} 时出错: {e}")
+        print(f"写入输出文件 {output_file} 或 {output_only_file} 时出错: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
