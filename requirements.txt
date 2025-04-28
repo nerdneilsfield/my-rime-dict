@@ -1,1 +1,3 @@
 pypinyin
+opencc-python-reimplemented
+jieba

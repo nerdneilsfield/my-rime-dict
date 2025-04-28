@@ -4,7 +4,10 @@ import re
 import argparse
 from pathlib import Path
 import pypinyin
+import time
+from datetime import datetime
 from typing import List, Tuple
+from concurrent.futures import ProcessPoolExecutor, as_completed # Use ProcessPoolExecutor
 
 # 定义中英文标点符号的正则表达式
 # 中文标点：，。？！；：""（）【】《》、
@@ -31,6 +34,26 @@ CHINESE_PUNCTUATIONS = ["，", "。", "！", "？", "；", "：", "“", "”", 
 COMMENT_LINE_STARTS = ["#", "&", "*", "-", "=", "//"]
 
 KEEP_REGEX = re.compile(r'^[A-Za-z0-9\u4e00-\u9fff，]+$')
+
+from opencc import OpenCC
+# 创建全局转换器（避免重复创建）
+try:
+    cc_t2s = OpenCC('t2s')
+except Exception as e:
+    print(f"Error initializing OpenCC: {e}")
+    print("Please make sure you have installed 'opencc-python-reimplemented' and the dictionary files are accessible.")
+    cc_t2s = None # 设置为 None，以便后续检查
+
+def to_simplified(text: str) -> str:
+    """将文本转换为简体中文，如果转换器初始化失败则返回原文"""
+    if cc_t2s:
+        try:
+            return cc_t2s.convert(text)
+        except Exception as e:
+            print(f"Error converting text '{text[:20]}...': {e}")
+            return text # 转换出错时返回原文
+    else:
+        return text
 
 def remove_english_alphabet(line: str) -> str:
     """删除行中的英文单词"""
@@ -64,8 +87,6 @@ def remove_number(line: str) -> str:
 def remove_float_number(line: str) -> str:
     """删除行中的浮点数"""
     return ONLY_FLOAT_NUMBER_RE.sub("", line)
-
-
 
 def check_valid_line(line) -> bool:
     """检查行是否有效"""
@@ -227,6 +248,7 @@ def process_line(line: str, unique_lines: List[str]):
             segment = segment.strip().replace(" ", "").replace("oo", "")
             # 提取纯中文字符
             segment = remove_punctuation(segment)
+            segment = to_simplified(segment)
             chinese_only_segment = only_keep_chinese_chars(segment)
             # 检查提取后的纯中文字符串是否有效，并添加到集合
             if chinese_only_segment and check_valid_line(chinese_only_segment):
@@ -253,11 +275,13 @@ def load_all_lines(input_dir: str) -> List[str]:
     number_lines_num = 0
     float_number_lines_num = 0
     english_and_number_lines_num = 0
+    total_lines_num = 0
 
     for file_path in txt_files:
         try:
             with open(file_path, 'r', encoding='utf-8') as infile:
                 for line in infile:
+                    total_lines_num += 1
                     line_strip = line.strip()
                     if any(line_strip.startswith(start) for start in COMMENT_LINE_STARTS):
                         comment_lines_num += 1
@@ -285,7 +309,7 @@ def load_all_lines(input_dir: str) -> List[str]:
         except Exception as e:
             print(f"处理文件 {file_path} 时出错: {e}")
 
-    print(f"共找到 {len(unique_lines)} 条不重复的行。")
+    print(f"共找到 {len(unique_lines)} / {total_lines_num} 条不重复的行。")
     print(f"注释行: {comment_lines_num}")
     print(f"空行: {empty_lines_num}")
     print(f"英文行: {english_lines_num}")
@@ -340,7 +364,7 @@ def generate_rime_flypy_lines(lines_with_pinyin: List[Tuple[str, List[str]]]) ->
         output_lines.append(f"{line} {pinyin_str}")
     return output_lines
 
-def merge_texts(input_dir, output_file_prefix, enable_rime, enable_rime_flypy, enable_rime_py, enable_shouxing):
+def merge_texts(input_dir, output_file_prefix, enable_rime, enable_rime_flypy, enable_rime_py, enable_shouxing) -> int:
         
     unique_lines = load_all_lines(input_dir)
     
@@ -395,6 +419,7 @@ def merge_texts(input_dir, output_file_prefix, enable_rime, enable_rime_flypy, e
             for line in rime_flypy_lines:
                 f.write(line + "\n")
         print(f"生成使用于 rime 的小鹤双拼词库文件 {output_rime_flypy_path} 成功")
+    return len(lines_with_pinyin)
             
 
 if __name__ == "__main__":
@@ -414,5 +439,16 @@ if __name__ == "__main__":
     if not os.path.exists(dir_name):
         print(f"Warning：输出路径 '{dir_name}' 不是一个有效的目录。")
         os.makedirs(dir_name, exist_ok=True)
+        
+    start_time = time.time()
+    print(f"开始时间: {start_time}")
 
-    merge_texts(args.input_dir, args.output_file_prefix, args.enable_rime, args.enable_rime_flypy, args.enable_rime_py, args.enable_shouxing)
+    lines_num = merge_texts(args.input_dir, args.output_file_prefix, args.enable_rime, args.enable_rime_flypy, args.enable_rime_py, args.enable_shouxing)
+    print(f"共处理 {lines_num} 行")
+    end_time = time.time()
+    print(f"结束时间: {end_time}")
+    elapsed_time = end_time - start_time
+    print(f"总时间: {elapsed_time} s")
+    if elapsed_time > 0:
+        print(f"速度: {lines_num / elapsed_time} 行/秒")
+    
