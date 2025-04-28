@@ -65,7 +65,8 @@ def remove_english_alphabet_and_number(line: str) -> str:
 
 def remove_punctuation(line: str) -> str:
     """删除行中的标点符号"""
-    res =  PUNCTUATION_RE.sub("", line)
+    res = line
+    # res =  PUNCTUATION_RE.sub("", line)
     res = res.replace("♂", "")
     res = res.replace("♀", "")
     res = res.replace("《", "")
@@ -224,28 +225,33 @@ def clean_pinyin(pinyins: List[str]) -> List[str]:
         result.append(pinyin)
     return result
 
-def process_line(line: str, unique_lines: List[str]):
+def process_line(line: str, unique_lines: List[str]) -> int:
     """处理单行文本，根据标点和空格分割，并只保留中文部分"""
     line = line.strip()
     if not line:
-        return
+        return 0
 
     if not check_valid_line(line):
-        return
+        return 0
 
     if HAVE_JAPANESE_CHAR_RE.match(line):
-        return
+        return 0
 
     line = remove_punctuation(line)
+    
+    total_long_sentence_num = 0
 
     # 统一使用正则表达式分割 (包含中英文标点和空格)
     segments = PUNCTUATION_RE.split(line)
+    
+    if len(segments) > 1:
+        total_long_sentence_num += len(segments)
 
     for segment in segments:
         segment = segment.strip()
         # 确保 segment 非空后再处理
         if segment:
-            segment = segment.strip().replace(" ", "").replace("oo", "")
+            segment = segment.strip().replace(" ", "").replace("oo", "").replace("oo", "")
             # 提取纯中文字符
             segment = remove_punctuation(segment)
             segment = to_simplified(segment)
@@ -253,6 +259,7 @@ def process_line(line: str, unique_lines: List[str]):
             # 检查提取后的纯中文字符串是否有效，并添加到集合
             if chinese_only_segment and check_valid_line(chinese_only_segment):
                 unique_lines.add(chinese_only_segment)
+    return total_long_sentence_num
 
 def load_all_lines(input_dir: str) -> List[str]:
     """合并文本文件""" 
@@ -276,7 +283,7 @@ def load_all_lines(input_dir: str) -> List[str]:
     float_number_lines_num = 0
     english_and_number_lines_num = 0
     total_lines_num = 0
-
+    total_long_sentence_num = 0
     for file_path in txt_files:
         try:
             with open(file_path, 'r', encoding='utf-8') as infile:
@@ -305,7 +312,7 @@ def load_all_lines(input_dir: str) -> List[str]:
                         english_and_number_lines_num += 1
                         continue
                     line_strip = remove_punctuation(line_strip)
-                    process_line(line_strip, unique_lines)
+                    total_long_sentence_num += process_line(line_strip, unique_lines)
         except Exception as e:
             print(f"处理文件 {file_path} 时出错: {e}")
 
@@ -317,7 +324,7 @@ def load_all_lines(input_dir: str) -> List[str]:
     print(f"数字行: {number_lines_num}")
     print(f"浮点数行: {float_number_lines_num}")
     print(f"英文和数字行: {english_and_number_lines_num}")
-    
+    print(f"长句行: {total_long_sentence_num}")
     unique_lines = list(unique_lines)
     unique_lines.sort()
     unique_lines = [line.strip() for line in unique_lines if check_valid_line(line)]
@@ -355,6 +362,15 @@ def generate_shouxing_lines(lines_with_pinyin: List[Tuple[str, List[str]]]) -> L
             output_lines.append(f"{line} {pinyin_str} 1")
     return output_lines
 
+def generate_qq_pinyin_lines(lines_with_pinyin: List[Tuple[str, List[str]]]) -> List[str]:
+    """生成适用于 QQ 拼音的行"""
+    output_lines = []
+    for line, pinyin_list in lines_with_pinyin:
+        if is_chinese_only(line):
+            pinyin_str = "'".join(pinyin_list)
+            output_lines.append(f"{pinyin_str} {line} 1")
+    return output_lines
+
 def generate_rime_flypy_lines(lines_with_pinyin: List[Tuple[str, List[str]]]) -> List[str]:
     """生成适用于小鹤双拼的 rime 词库"""
     output_lines = []
@@ -364,7 +380,7 @@ def generate_rime_flypy_lines(lines_with_pinyin: List[Tuple[str, List[str]]]) ->
         output_lines.append(f"{line} {pinyin_str}")
     return output_lines
 
-def merge_texts(input_dir, output_file_prefix, enable_rime, enable_rime_flypy, enable_rime_py, enable_shouxing) -> int:
+def merge_texts(input_dir, output_file_prefix, enable_rime, enable_rime_flypy, enable_rime_py, enable_shouxing, enable_qqpinyin) -> int:
         
     unique_lines = load_all_lines(input_dir)
     
@@ -419,6 +435,13 @@ def merge_texts(input_dir, output_file_prefix, enable_rime, enable_rime_flypy, e
             for line in rime_flypy_lines:
                 f.write(line + "\n")
         print(f"生成使用于 rime 的小鹤双拼词库文件 {output_rime_flypy_path} 成功")
+    if enable_qqpinyin:
+        output_qqpinyin_path = f"{output_file_prefix}_qq.txt"
+        qqpinyin_lines = generate_qq_pinyin_lines(lines_with_pinyin)
+        with open(output_qqpinyin_path, 'w', encoding='utf-8') as f:
+            for line in qqpinyin_lines:
+                f.write(line + "\n")
+        print(f"生成适用于 QQ 拼音的词库文件 {output_qqpinyin_path} 成功")
     return len(lines_with_pinyin)
             
 
@@ -430,6 +453,7 @@ if __name__ == "__main__":
     parser.add_argument('--enable_rime_flypy', action='store_true', help='是否生成适用于小鹤双拼的 rime 词库')
     parser.add_argument('--enable_rime_py', action='store_true', help='是否生成适用于拼音输入法的 rime 词库')
     parser.add_argument('--enable_shouxing', action='store_true', help='是否只生成适用于手心的 txt 文件')
+    parser.add_argument('--enable_qqpinyin', action='store_true', help='是否只生成适用于 QQ 拼音的 txt 文件')
 
     args = parser.parse_args()
     
@@ -443,7 +467,7 @@ if __name__ == "__main__":
     start_time = time.time()
     print(f"开始时间: {start_time}")
 
-    lines_num = merge_texts(args.input_dir, args.output_file_prefix, args.enable_rime, args.enable_rime_flypy, args.enable_rime_py, args.enable_shouxing)
+    lines_num = merge_texts(args.input_dir, args.output_file_prefix, args.enable_rime, args.enable_rime_flypy, args.enable_rime_py, args.enable_shouxing, args.enable_qqpinyin)
     print(f"共处理 {lines_num} 行")
     end_time = time.time()
     print(f"结束时间: {end_time}")
