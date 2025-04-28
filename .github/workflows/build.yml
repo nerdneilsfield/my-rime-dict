@@ -20,7 +20,7 @@ jobs:
           python -m pip install --use-pep517 -r requirements.txt
       - name: Merge texts
         run: |
-          python scripts/merge_texts.py text output/merged_texts --enable_shouxing --enable_rime --enable_rime_flypy
+          python scripts/merge_texts.py text output/merged_texts --enable_shouxing --enable_rime --enable_rime_flypy --enable_qqpinyin
       - name: build dictionary
         run: |
           libime_pinyindict output/merged_texts_ime.txt merged_texts.dict -v
