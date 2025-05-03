@@ -4,7 +4,7 @@
 
 手动安装
 
-1. 下载 `merged_texts.dict.tar.gz` 并解压，得到词库文件 `merged_texts.dict` 。
+1. 下载 `merged_texts.dict.zip` 并解压，得到词库文件 `merged_texts.dict` 。
 2. 将词库文件复制到目录 `/usr/share/fcitx5/pinyin/dictionaries/` 中（如果没有这个目录，您可以自行创建）。
 3. 重启 Fcitx 后即可生效。
 
@@ -15,7 +15,7 @@
 
 ## Rime 相关输入法
 
-1. 下载 `merged_texts.dict.zip` 并解压，得到词库文件 `merged_texts_only.txt`。
+1. 下载 `merged_texts_rime.zip` 并解压，得到词库文件 `merged_texts_rime.txt`。(或者如果你用双拼也可以用 `merged_texts_rime_flypy.zip` )
 2. 移动到 `rime` 的配置文件目录。（如 Windows 的 `%APPDATA%\Rime\`，Linux/Mac 的 `~/.config/ibus/rime/` 或 `~/.local/share/fcitx5/rime/` 等）
 3. 打开你所用输入方案的自定义配置文件（如 `wubi_pinyin.custom.yaml` 或 `luna_pinyin.custom.yaml`）添加 `patch` 如下。
 4. 保存所有更改后，重新部署/同步 Rime（通常在输入法状态栏菜单里有“重新部署”选项）
@@ -23,10 +23,10 @@
 ```yaml
 patch:
   engine/translators/+:
-    - table_translator@merged_texts_only # 增加自定义词典翻译器
-  merged_texts_only:
+    - table_translator@merged_texts_rime # 增加自定义词典翻译器
+  merged_texts_rime:
     dictionary: ""
-    user_dict: merged_texts_only # 指向 merged_texts_only.txt
+    user_dict: merged_texts_rime # 指向 merged_texts_rime.txt
     db_class: stabledb
     enable_completion: true
     enable_sentence: true
@@ -35,9 +35,10 @@ patch:
 
 ## 手心输入法
 
-1. 打开设置切换到词库
-2. 导入用户本地词库，选择 `output/merged_texts_shouxing.txt` 导入即可
+1. 下载 `merged_texts_shouxing.zip`
+2. 打开设置切换到词库
+3. 导入用户本地词库，选择 `merged_texts_shouxing.txt` 导入即可
 
 ## 其它输入法
 
-请下载 [深蓝词库转换](https://github.com/studyzy/imewlconverter)。输入格式选择无拼音纯汉字，选择文件 `output/merged_texts_only.txt` 即可，然后选择目标格式。
+请下载 [深蓝词库转换](https://github.com/studyzy/imewlconverter)。输入格式选择无拼音纯汉字，下载 `merged_texts_only.zip` 并选择文件 `merged_texts_only.txt` 即可，然后选择目标格式。

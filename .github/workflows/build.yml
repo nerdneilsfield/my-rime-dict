@@ -26,21 +26,66 @@ jobs:
           libime_pinyindict output/merged_texts_ime.txt merged_texts.dict -v
       - name: Compress dictionary
         run: |
-          tar -czvf merged_texts.dict.tar.gz merged_texts.dict output/*
-          zip -9 merged_texts.dict.zip merged_texts.dict output/*
-      - name: Upload tar.gz to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: merged_texts.dict.tar.gz
-          asset_name: merged_texts.dict.tar.gz
-          tag: ${{ github.ref }}
-          overwrite: true
-      - name: Upload zip to release
+          zip -9 merged_texts.dict.zip merged_texts.dict
+          zip -9 merged_texts_rime.zip output/merged_texts_rime.txt
+          zip -9 merged_texts_rime_flypy.zip  output/merged_texts_rime_flypy.txt
+          zip -9 merged_texts_shouxing.zip  output/merged_texts_shouxing.txt
+          zip -9 merged_texts_only.zip  output/merged_texts_only.txt
+          zip -9 merged_texts_qq.zip  output/merged_texts_qq.txt
+          zip -9 merged_texts_ime.zip  output/merged_texts_ime.txt
+      - name: Upload dict zip to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: merged_texts.dict.zip
           asset_name: merged_texts.dict.zip
+          tag: ${{ github.ref }}
+          overwrite: true
+      - name: Upload rime zip to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: merged_texts_rime.zip
+          asset_name: merged_texts_rime.zip
+          tag: ${{ github.ref }}
+          overwrite: true
+      - name: Upload rime flypy zip to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: merged_texts_rime_flypy.zip
+          asset_name: merged_texts_rime_flypy.zip
+          tag: ${{ github.ref }}
+          overwrite: true
+      - name: Upload shouxing zip to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: merged_texts_shouxing.zip
+          asset_name: merged_texts_shouxing.zip
+          tag: ${{ github.ref }}
+          overwrite: true
+      - name: Upload only zip to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: merged_texts_only.zip
+          asset_name: merged_texts_only.zip
+          tag: ${{ github.ref }}
+          overwrite: true
+      - name: Upload qq zip to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: merged_texts_qq.zip
+          asset_name: merged_texts_qq.zip
+          tag: ${{ github.ref }}
+          overwrite: true
+      - name: Upload ime zip to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: merged_texts_ime.zip
+          asset_name: merged_texts_ime.zip
           tag: ${{ github.ref }}
           overwrite: true

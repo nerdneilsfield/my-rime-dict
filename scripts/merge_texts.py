@@ -6,8 +6,8 @@ from pathlib import Path
 import pypinyin
 import time
 from datetime import datetime
-from typing import List, Tuple
-from concurrent.futures import ProcessPoolExecutor, as_completed # Use ProcessPoolExecutor
+from typing import List, Set, Tuple
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 # 定义中英文标点符号的正则表达式
 # 中文标点：，。？！；：""（）【】《》、
@@ -35,6 +35,11 @@ COMMENT_LINE_STARTS = ["#", "&", "*", "-", "=", "//"]
 
 KEEP_REGEX = re.compile(r'^[A-Za-z0-9\u4e00-\u9fff，]+$')
 
+start_time = 0
+read_time = 0
+set_time = 0
+valid_time = 0
+to_py_time = 0
 from opencc import OpenCC
 # 创建全局转换器（避免重复创建）
 try:
@@ -225,17 +230,17 @@ def clean_pinyin(pinyins: List[str]) -> List[str]:
         result.append(pinyin)
     return result
 
-def process_line(line: str, unique_lines: List[str]) -> int:
+def process_line(line: str) -> Tuple[str, int]:
     """处理单行文本，根据标点和空格分割，并只保留中文部分"""
     line = line.strip()
     if not line:
-        return 0
+        return "", 0
 
     if not check_valid_line(line):
-        return 0
+        return "", 0
 
     if HAVE_JAPANESE_CHAR_RE.match(line):
-        return 0
+        return "", 0
 
     line = remove_punctuation(line)
     
@@ -243,6 +248,8 @@ def process_line(line: str, unique_lines: List[str]) -> int:
 
     # 统一使用正则表达式分割 (包含中英文标点和空格)
     segments = PUNCTUATION_RE.split(line)
+    
+    final_str = ""
     
     if len(segments) > 1:
         total_long_sentence_num += len(segments)
@@ -258,23 +265,12 @@ def process_line(line: str, unique_lines: List[str]) -> int:
             chinese_only_segment = only_keep_chinese_chars(segment)
             # 检查提取后的纯中文字符串是否有效，并添加到集合
             if chinese_only_segment and check_valid_line(chinese_only_segment):
-                unique_lines.add(chinese_only_segment)
-    return total_long_sentence_num
+                final_str = chinese_only_segment
+    return final_str, total_long_sentence_num
 
-def load_all_lines(input_dir: str) -> List[str]:
+def load_batch_files(txt_files: List[Path]) -> Tuple[List[str], List[int]]:
     """合并文本文件""" 
-    print(f"开始处理目录: {input_dir}")
-    txt_files = find_txt_files(input_dir)
-    if not txt_files:
-        print("错误：在指定目录下未找到 .txt 文件。")
-        sys.exit(1)
-
-    print(f"找到 {len(txt_files)} 个 .txt 文件:")
-    # for f in txt_files:
-    #     print(f"  - {f}")
-
-    unique_lines = set()
-    
+    unique_lines = []
     comment_lines_num = 0
     empty_lines_num = 0
     english_lines_num = 0
@@ -312,9 +308,112 @@ def load_all_lines(input_dir: str) -> List[str]:
                         english_and_number_lines_num += 1
                         continue
                     line_strip = remove_punctuation(line_strip)
-                    total_long_sentence_num += process_line(line_strip, unique_lines)
+                    # total_long_sentence_num += process_line(line_strip, unique_lines)
+                    final_str, long_sentence_num = process_line(line_strip)
+                    if final_str and len(final_str) > 0:
+                        unique_lines.append(final_str)
+                    total_long_sentence_num += long_sentence_num
+                    
         except Exception as e:
             print(f"处理文件 {file_path} 时出错: {e}")
+    
+    return_statics = [
+        comment_lines_num,
+        empty_lines_num,
+        english_lines_num,
+        japanese_lines_num,
+        number_lines_num,
+        float_number_lines_num,
+        english_and_number_lines_num,
+        total_lines_num,
+        total_long_sentence_num
+    ]
+    
+    return unique_lines, return_statics
+
+def split_into_batch(txt_files: List[Path], batch_num:  int) -> List[List[Path]]:
+    """将 txt 文件列表分割成多个批次"""
+    txt_size = len(txt_files)
+    batch_size = txt_size // batch_num
+    if txt_size % batch_num != 0:
+        batch_size += 1
+    return [txt_files[i:i + batch_size] for i in range(0, txt_size, batch_size)]
+    
+    
+def load_all_lines(input_dir: str) -> List[str]:
+    """合并文本文件""" 
+    global valid_time, set_time, read_time
+    print(f"开始处理目录: {input_dir}")
+    txt_files = find_txt_files(input_dir)
+    if not txt_files:
+        print("错误：在指定目录下未找到 .txt 文件。")
+        sys.exit(1)
+
+    print(f"找到 {len(txt_files)} 个 .txt 文件:")
+    # for f in txt_files:
+    #     print(f"  - {f}")
+
+    unique_lines = set()
+    unique_lines_list = []
+    
+    comment_lines_num = 0
+    empty_lines_num = 0
+    english_lines_num = 0
+    japanese_lines_num = 0
+    number_lines_num = 0
+    float_number_lines_num = 0
+    english_and_number_lines_num = 0
+    total_lines_num = 0
+    total_long_sentence_num = 0
+    
+    batch_files = split_into_batch(txt_files, os.cpu_count())
+    
+    total_batch_num = sum([len(batch_file) for batch_file in batch_files])
+    print(f"batch 之后的文件总数是: {total_batch_num} == {len(txt_files)}")
+    
+    batch_num = os.cpu_count()
+    
+    Executor = ProcessPoolExecutor
+    futures = {}
+    
+    # for batch_file in batch_files:
+    #     batch_unique_lines, return_statics = load_batch_files(batch_file)
+    #     unique_lines.update(batch_unique_lines)
+    #     comment_lines_num += return_statics[0]
+    #     empty_lines_num += return_statics[1]
+    #     english_lines_num += return_statics[2]
+    #     japanese_lines_num += return_statics[3]
+    #     number_lines_num += return_statics[4]
+    #     float_number_lines_num += return_statics[5]
+    #     english_and_number_lines_num += return_statics[6]
+    #     total_lines_num += return_statics[7]
+    #     total_long_sentence_num += return_statics[8]
+    
+    with Executor(max_workers=batch_num) as executor:
+        for batch_file in batch_files:
+            futures[executor.submit(load_batch_files, batch_file)] = batch_file
+            
+        for future in as_completed(futures):
+            batch_unique_lines, return_statics = future.result()
+            unique_lines_list.extend(batch_unique_lines)
+            comment_lines_num += return_statics[0]
+            empty_lines_num += return_statics[1]
+            english_lines_num += return_statics[2]
+            japanese_lines_num += return_statics[3]
+            number_lines_num += return_statics[4]
+            float_number_lines_num += return_statics[5]
+            english_and_number_lines_num += return_statics[6]
+            total_lines_num += return_statics[7]
+            total_long_sentence_num += return_statics[8]
+            
+    read_time = time.time()
+    print(f"读取文件时间: {read_time - start_time} s")
+    
+    unique_lines = set(unique_lines_list)
+    
+    set_time = time.time()
+    
+    print(f"合并set 时间: {set_time - read_time} s")
 
     print(f"共找到 {len(unique_lines)} / {total_lines_num} 条不重复的行。")
     print(f"注释行: {comment_lines_num}")
@@ -328,6 +427,8 @@ def load_all_lines(input_dir: str) -> List[str]:
     unique_lines = list(unique_lines)
     unique_lines.sort()
     unique_lines = [line.strip() for line in unique_lines if check_valid_line(line)]
+    valid_time = time.time()
+    print(f"check valid 时间 {valid_time - read_time} s")
     return unique_lines
 
 def generate_ime_lines(lines_with_pinyin: List[Tuple[str, List[str]]]) -> List[str]:
@@ -342,8 +443,9 @@ def generate_rime_lines(lines_with_pinyin: List[Tuple[str, List[str]]]) -> List[
     """生成适用于 rime 的行"""
     output_lines = []
     for line, pinyin_list in lines_with_pinyin:
-        pinyin_str = "".join(pinyin_list)
-        output_lines.append(f"{line} {pinyin_str} 0")
+        if is_chinese_only(line):
+            pinyin_str = "".join(pinyin_list)
+            output_lines.append(f"{line} {pinyin_str}")
     return output_lines
 
 def generate_only_text_lines(lines_with_pinyin: List[Tuple[str, List[str]]]) -> List[str]:
@@ -375,16 +477,93 @@ def generate_rime_flypy_lines(lines_with_pinyin: List[Tuple[str, List[str]]]) ->
     """生成适用于小鹤双拼的 rime 词库"""
     output_lines = []
     for line, pinyin_list in lines_with_pinyin:
-        pinyin_list = pinyin_to_xiaohe(pinyin_list)
-        pinyin_str = "".join(pinyin_list)
-        output_lines.append(f"{line} {pinyin_str}")
+        if is_chinese_only(line):
+            pinyin_list = pinyin_to_xiaohe(pinyin_list)
+            pinyin_str = "".join(pinyin_list)
+            output_lines.append(f"{line} {pinyin_str}")
     return output_lines
+
+
+def generate_batch_lines(lines: List[str], batch_num: int) -> List[List[str]]:
+    """生成批量行"""
+    batch_size = len(lines) // batch_num
+    if len(lines) % batch_num != 0:
+        batch_size += 1
+    return [lines[i:i + batch_size] for i in range(0, len(lines), batch_size)]
+
+def generate_pinyin_list_batch(lines: List[str]) -> List[List[str]]:
+    """生成拼音列表"""
+    return [string_to_pinyin_list(line.strip()) for line in lines]
+
+def write_ime_file(output_file_prefix: str, lines_with_pinyin) -> str:
+    """写入 ime 文件"""
+    ime_lines = generate_ime_lines(lines_with_pinyin)
+    ime_file = f"{output_file_prefix}_ime.txt"
+    with open(ime_file, 'w', encoding='utf-8') as f:
+        for line in ime_lines:
+            f.write(f"{line}\n")
+    return ime_file
+            
+def write_only_file(output_file_prefix: str, lines_with_pinyin) -> str:
+    """写入 纯汉字 文件"""
+    only_file = f"{output_file_prefix}_only.txt"
+    with open(only_file, 'w', encoding='utf-8') as f:
+        for line, _ in lines_with_pinyin:
+            if is_chinese_only(line):
+                f.write(f"{line}\n")
+    return only_file
+def write_rime_file(output_file_prefix: str, lines_with_pinyin) -> str:
+    """写入 rime 文件"""
+    rime_lines = generate_rime_lines(lines_with_pinyin)
+    rime_file = f"{output_file_prefix}_rime.txt"
+    with open(rime_file, 'w', encoding='utf-8') as f:
+        for line in rime_lines:
+            f.write(f"{line}\n")
+    return rime_file
+            
+def write_shouxing_file(output_file_prefix: str, lines_with_pinyin) -> str:
+    """写入 手心 文件"""
+    shouxing_lines = generate_shouxing_lines(lines_with_pinyin)
+    shouxing_file = f"{output_file_prefix}_shouxing.txt"
+    with open(shouxing_file, 'w', encoding='utf-8') as f:
+        for line in shouxing_lines:
+            f.write(f"{line}\n")
+    return shouxing_file
+def write_rime_flypy_file(output_file_prefix: str, lines_with_pinyin) -> str:
+    """写入适用于小鹤双拼的"""
+    rime_flypy_file = f"{output_file_prefix}_rime_flypy.txt"
+    rime_flypy_lines = generate_rime_flypy_lines(lines_with_pinyin)
+    with open(rime_flypy_file, 'w', encoding='utf-8') as f:
+        for line in rime_flypy_lines:
+            f.write(f"{line}\n")
+    return rime_flypy_file
+            
+def write_qq_pinyin_file(output_file_prefix: str, lines_with_pinyin) -> str:
+    """写入适用于 QQ 拼音的文件"""
+    qq_pinyin_file = f"{output_file_prefix}_qq.txt"
+    qq_pinyin_lines = generate_qq_pinyin_lines(lines_with_pinyin)
+    with open(qq_pinyin_file, 'w', encoding='utf-8') as f:
+        for line in qq_pinyin_lines:
+            f.write(f"{line}\n")
+    return qq_pinyin_file
 
 def merge_texts(input_dir, output_file_prefix, enable_rime, enable_rime_flypy, enable_rime_py, enable_shouxing, enable_qqpinyin) -> int:
         
     unique_lines = load_all_lines(input_dir)
     
-    pinyin_lines = [string_to_pinyin_list(line.strip()) for line in unique_lines]
+    batch_num = os.cpu_count()
+    batch_lines = generate_batch_lines(unique_lines, batch_num)
+    
+    futures = {}
+    pinyin_lines = []
+    with ProcessPoolExecutor(max_workers=batch_num) as executor:
+        for batch_line in batch_lines:
+            futures[executor.submit(generate_pinyin_list_batch, batch_line)] = 1
+        for future in as_completed(futures):
+            pinyin_lines.extend(future.result())
+    
+    to_py_time = time.time()
+    print(f"to pinyin 时间 {to_py_time - valid_time} s")
     
     lines_with_pinyin = map(lambda line, pinyin_list: (line, pinyin_list), unique_lines, pinyin_lines)
     
@@ -393,55 +572,84 @@ def merge_texts(input_dir, output_file_prefix, enable_rime, enable_rime_flypy, e
     print(f"Type of lines_with_pinyin: {type(lines_with_pinyin)}")
     
     print(f"最后剩下 {len(lines_with_pinyin)} 行")
-
-
-    output_ime_path = f"{output_file_prefix}_ime.txt"
     
-    ime_lines = generate_ime_lines(lines_with_pinyin)
-    with open(output_ime_path, 'w', encoding='utf-8') as f:
-        for line in ime_lines:
-            f.write(line + "\n")
-    print(f"生成 ime 词库文件 {output_ime_path} 成功")
-    
-    # 纯汉字
-    output_only_text_path = f"{output_file_prefix}_only.txt"
-    only_text_lines = generate_only_text_lines(lines_with_pinyin)
-    with open(output_only_text_path, 'w', encoding='utf-8') as f:
-        for line in only_text_lines:
-            if is_chinese_only(line):
-                f.write(line + "\n")
-    print(f"生成 纯汉字 词库文件 {output_only_text_path} 成功")
-        
+    task_num = 2
     if enable_rime:
-        output_rime_path = f"{output_file_prefix}_rime.txt"
-        rime_lines = generate_rime_lines(lines_with_pinyin)
-        with open(output_rime_path, 'w', encoding='utf-8') as f:
-            for line in rime_lines:
-                f.write(line + "\n")
-        print(f"生成 rime 词库文件 {output_rime_path} 成功")
-            
-    if enable_shouxing:
-        output_shouxing_path = f"{output_file_prefix}_shouxing.txt"
-        shouxing_lines = generate_shouxing_lines(lines_with_pinyin)
-        with open(output_shouxing_path, 'w', encoding='utf-8') as f:
-            for line in shouxing_lines:
-                f.write(line + "\n")
-        print(f"生成 手心 词库文件 {output_shouxing_path} 成功")
-        
+        task_num += 1
     if enable_rime_flypy:
-        output_rime_flypy_path = f"{output_file_prefix}_rime_flypy.txt"
-        rime_flypy_lines = generate_rime_flypy_lines(lines_with_pinyin)
-        with open(output_rime_flypy_path, 'w', encoding='utf-8') as f:
-            for line in rime_flypy_lines:
-                f.write(line + "\n")
-        print(f"生成使用于 rime 的小鹤双拼词库文件 {output_rime_flypy_path} 成功")
+        task_num += 1
+    if enable_shouxing:
+        task_num += 1
     if enable_qqpinyin:
-        output_qqpinyin_path = f"{output_file_prefix}_qq.txt"
-        qqpinyin_lines = generate_qq_pinyin_lines(lines_with_pinyin)
-        with open(output_qqpinyin_path, 'w', encoding='utf-8') as f:
-            for line in qqpinyin_lines:
-                f.write(line + "\n")
-        print(f"生成适用于 QQ 拼音的词库文件 {output_qqpinyin_path} 成功")
+        task_num += 1
+
+
+    # output_ime_path = f"{output_file_prefix}_ime.txt"
+    
+    # ime_lines = generate_ime_lines(lines_with_pinyin)
+    # with open(output_ime_path, 'w', encoding='utf-8') as f:
+    #     for line in ime_lines:
+    #         f.write(line + "\n")
+    # print(f"生成 ime 词库文件 {output_ime_path} 成功")
+    
+    # # 纯汉字
+    # output_only_text_path = f"{output_file_prefix}_only.txt"
+    # only_text_lines = generate_only_text_lines(lines_with_pinyin)
+    # with open(output_only_text_path, 'w', encoding='utf-8') as f:
+    #     for line in only_text_lines:
+    #         if is_chinese_only(line):
+    #             f.write(line + "\n")
+    # print(f"生成 纯汉字 词库文件 {output_only_text_path} 成功")
+        
+    # if enable_rime:
+    #     output_rime_path = f"{output_file_prefix}_rime.txt"
+    #     rime_lines = generate_rime_lines(lines_with_pinyin)
+    #     with open(output_rime_path, 'w', encoding='utf-8') as f:
+    #         for line in rime_lines:
+    #             f.write(line + "\n")
+    #     print(f"生成 rime 词库文件 {output_rime_path} 成功")
+            
+    # if enable_shouxing:
+    #     output_shouxing_path = f"{output_file_prefix}_shouxing.txt"
+    #     shouxing_lines = generate_shouxing_lines(lines_with_pinyin)
+    #     with open(output_shouxing_path, 'w', encoding='utf-8') as f:
+    #         for line in shouxing_lines:
+    #             f.write(line + "\n")
+    #     print(f"生成 手心 词库文件 {output_shouxing_path} 成功")
+        
+    # if enable_rime_flypy:
+    #     output_rime_flypy_path = f"{output_file_prefix}_rime_flypy.txt"
+    #     rime_flypy_lines = generate_rime_flypy_lines(lines_with_pinyin)
+    #     with open(output_rime_flypy_path, 'w', encoding='utf-8') as f:
+    #         for line in rime_flypy_lines:
+    #             f.write(line + "\n")
+    #     print(f"生成使用于 rime 的小鹤双拼词库文件 {output_rime_flypy_path} 成功")
+    # if enable_qqpinyin:
+    #     output_qqpinyin_path = f"{output_file_prefix}_qq.txt"
+    #     qqpinyin_lines = generate_qq_pinyin_lines(lines_with_pinyin)
+    #     with open(output_qqpinyin_path, 'w', encoding='utf-8') as f:
+    #         for line in qqpinyin_lines:
+    #             f.write(line + "\n")
+    #     print(f"生成适用于 QQ 拼音的词库文件 {output_qqpinyin_path} 成功")
+    
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        futures = {}
+        futures[executor.submit(write_ime_file, output_file_prefix, lines_with_pinyin)] = 1
+        futures[executor.submit(write_only_file, output_file_prefix, lines_with_pinyin)] = 2
+        if enable_rime:
+            futures[executor.submit(write_rime_file, output_file_prefix, lines_with_pinyin)] = 3
+        if enable_rime_flypy:
+            futures[executor.submit(write_rime_flypy_file, output_file_prefix, lines_with_pinyin)] = 4
+        if enable_shouxing:
+            futures[executor.submit(write_shouxing_file, output_file_prefix, lines_with_pinyin)] = 5
+        if enable_qqpinyin:
+            futures[executor.submit(write_qq_pinyin_file, output_file_prefix, lines_with_pinyin)] = 6
+        for future in as_completed(futures):
+            print(f"写入 {future.result()} 成功")
+        
+        
+    write_time = time.time()
+    print(f"写入时间: {write_time - to_py_time} s")
     return len(lines_with_pinyin)
             
 
