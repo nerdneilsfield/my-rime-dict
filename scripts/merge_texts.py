@@ -491,9 +491,9 @@ def generate_batch_lines(lines: List[str], batch_num: int) -> List[List[str]]:
         batch_size += 1
     return [lines[i:i + batch_size] for i in range(0, len(lines), batch_size)]
 
-def generate_pinyin_list_batch(lines: List[str]) -> List[List[str]]:
+def generate_pinyin_list_batch(lines: List[str]) -> List[Tuple[str, List[str]]]:
     """生成拼音列表"""
-    return [string_to_pinyin_list(line.strip()) for line in lines]
+    return [(line.strip(), string_to_pinyin_list(line.strip())) for line in lines]
 
 def write_ime_file(output_file_prefix: str, lines_with_pinyin) -> str:
     """写入 ime 文件"""
@@ -565,7 +565,8 @@ def merge_texts(input_dir, output_file_prefix, enable_rime, enable_rime_flypy, e
     to_py_time = time.time()
     print(f"to pinyin 时间 {to_py_time - valid_time} s")
     
-    lines_with_pinyin = map(lambda line, pinyin_list: (line, pinyin_list), unique_lines, pinyin_lines)
+    # lines_with_pinyin = map(lambda line, pinyin_list: (line, pinyin_list), unique_lines, pinyin_lines)
+    lines_with_pinyin = pinyin_lines
     
     lines_with_pinyin = list(filter(lambda line: line[1] and len(line[1]) > 0 , lines_with_pinyin))
     
